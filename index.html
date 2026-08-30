@@ -1,0 +1,1894 @@
+<!DOCTYPE html>
+<html lang="ps" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>د افغانستان اطلس — متعامل ولایتي نقشه</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Turf.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+
+  <style>
+
+    :root {
+      /* NEW LIGHT BACKGROUND COLORS */
+      --bg: #f8fafc;
+      --bg-panel: #ffffff;
+      --bg-panel-2: #f1f5f9;
+      --bg-inset: #f1f5f9;
+
+      --border: #e2e8f0;
+      --border-soft: rgba(59, 130, 246, .12);
+
+      --text: #1e293b;
+      --text-dim: #64748b;
+      --text-faint: #94a3b8;
+
+      --blue-900: #1e3a8a;
+      --blue-700: #1d4ed8;
+      --blue-600: #2563eb;
+      --blue-500: #3b82f6;
+      --blue-400: #60a5fa;
+      --blue-300: #93c5fd;
+      --blue-200: #bfdbfe;
+      --cyan: #06b6d4;
+
+      --tick: rgba(59, 130, 246, .25);
+    }
+
+    html,
+    body {
+      min-height: 100%;
+    }
+
+    body {
+      font-family: 'Noto Sans Arabic', 'Inter', Arial, sans-serif;
+      background: var(--bg);
+      background-image:
+        radial-gradient(circle at 12% 0%, rgba(59,130,246,.08), transparent 42%),
+        radial-gradient(circle at 88% 15%, rgba(6,182,212,.04), transparent 40%);
+      background-attachment: fixed;
+      color: var(--text);
+    }
+
+    .font-display {
+      font-family: 'Space Grotesk', 'Inter', Arial, sans-serif;
+    }
+
+    .font-mono {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+    }
+
+    [lang-pashto], .pashto {
+      font-family: 'Noto Sans Arabic', Arial, sans-serif;
+    }
+
+    #map {
+      height: 620px;
+      min-height: 480px;
+      background: #e2e8f0;
+    }
+
+    .leaflet-container {
+      background: #e2e8f0;
+      font-family: inherit;
+    }
+
+    .province-label {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+
+      color: #1e293b;
+      font-family: 'Noto Sans Arabic', Arial, sans-serif;
+
+      font-weight: 700;
+      font-size: 14px;
+
+      text-shadow:
+        0 1px 2px rgba(255,255,255,.8),
+        0 0 4px rgba(255,255,255,.6);
+
+      white-space: nowrap;
+
+      direction: rtl;
+      text-align: center;
+    }
+
+    .leaflet-tooltip.province-label::before {
+      display: none;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, .8);
+      backdrop-filter: blur(16px);
+    }
+
+    .corner-ticks {
+      position: relative;
+      background-image:
+        linear-gradient(to right, var(--tick) 1.5px, transparent 1.5px),
+        linear-gradient(to bottom, var(--tick) 1.5px, transparent 1.5px),
+        linear-gradient(to left, var(--tick) 1.5px, transparent 1.5px),
+        linear-gradient(to bottom, var(--tick) 1.5px, transparent 1.5px),
+        linear-gradient(to right, var(--tick) 1.5px, transparent 1.5px),
+        linear-gradient(to top, var(--tick) 1.5px, transparent 1.5px),
+        linear-gradient(to left, var(--tick) 1.5px, transparent 1.5px),
+        linear-gradient(to top, var(--tick) 1.5px, transparent 1.5px);
+      background-size: 16px 16px;
+      background-repeat: no-repeat;
+      background-position:
+        top left, top left,
+        top right, top right,
+        bottom right, bottom right,
+        bottom left, bottom left;
+    }
+
+    .topo-bg {
+      background-image:
+        repeating-radial-gradient(circle at 78% 20%, rgba(59,130,246,.06) 0px, rgba(59,130,246,.06) 1px, transparent 1px, transparent 34px),
+        repeating-radial-gradient(circle at 78% 20%, rgba(59,130,246,.03) 0px, rgba(59,130,246,.03) 1px, transparent 1px, transparent 17px);
+    }
+
+    .compass {
+      animation: spin 90s linear infinite;
+      transform-origin: 50% 50%;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .compass { animation: none; }
+    }
+
+    .province-btn {
+      position: relative;
+      border-left: 2px solid transparent;
+      color: var(--text-dim);
+    }
+
+    .province-btn:hover {
+      border-left-color: var(--blue-500);
+      background: var(--bg-panel-2);
+      color: var(--text);
+    }
+
+    .province-btn.active {
+      background: linear-gradient(90deg, rgba(59,130,246,.15), rgba(59,130,246,.05));
+      border-left-color: var(--blue-500);
+      color: var(--blue-700);
+    }
+
+    .scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .scrollbar::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 99px;
+    }
+
+    .population-display {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--blue-600);
+      letter-spacing: .01em;
+    }
+
+    .province-info-popup {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--blue-500);
+      border-radius: 6px;
+      padding: 7px 12px;
+      color: var(--text);
+      font-family: 'Noto Sans Arabic', Arial, sans-serif;
+      font-size: 11px;
+      line-height: 1.5;
+      direction: rtl;
+      text-align: right;
+      min-width: 130px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.15), 0 0 0 1px rgba(59,130,246,.1);
+    }
+
+    .province-info-popup .popup-title {
+      font-size: 14px;
+      font-weight: 900;
+      color: var(--blue-600);
+      margin-bottom: 3px;
+      text-align: center;
+      letter-spacing: .02em;
+    }
+
+    .province-info-popup .popup-capital {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 1px;
+    }
+
+    .province-info-popup .popup-capital span {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .province-info-popup .popup-population {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      direction: ltr;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--blue-600);
+      margin-top: 4px;
+      border-top: 1px dashed rgba(0, 0, 0, 0.15);
+      padding-top: 4px;
+      text-align: center;
+    }
+
+    .custom-popup .leaflet-popup-content-wrapper {
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    .custom-popup .leaflet-popup-content {
+      margin: 0;
+      padding: 0;
+    }
+
+    .custom-popup .leaflet-popup-tip {
+      background: transparent;
+      display: none;
+    }
+
+    .leaflet-control-zoom {
+      display: none !important;
+    }
+
+    .city-detail-section {
+      display: none;
+      margin-top: 20px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--bg-panel);
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.1);
+    }
+
+    .city-detail-section.visible {
+      display: block;
+    }
+
+    .city-map {
+      height: 200px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #e2e8f0;
+      margin-top: 12px;
+    }
+
+    .city-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--blue-600);
+      margin-bottom: 5px;
+    }
+
+    .city-subtitle {
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+
+    .city-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .city-info-item {
+      background: var(--bg-inset);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .city-info-label {
+      font-size: 11px;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 3px;
+    }
+
+    .city-info-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+  </style>
+</head>
+
+
+<body class="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+
+
+<!-- =========================================================
+     HEADER
+========================================================= -->
+
+<header
+  class="sticky top-0 z-50 border-b border-[var(--border)] bg-white/90 backdrop-blur"
+>
+
+  <div
+    class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4"
+  >
+
+    <div class="flex items-center gap-3">
+
+      <div
+        class="grid h-11 w-11 place-items-center rounded-xl border border-[var(--border)] bg-white"
+      >
+        <svg class="compass h-6 w-6" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="9.5" stroke="#3b82f6" stroke-width="1.1" opacity=".55"/>
+          <path d="M12 3v2M12 19v2M3 12h2M19 12h2" stroke="#3b82f6" stroke-width="1.1" opacity=".55"/>
+          <path d="M12 5L14.3 12L12 19L9.7 12Z" fill="#3b82f6"/>
+          <circle cx="12" cy="12" r="1.3" fill="#1e293b"/>
+        </svg>
+      </div>
+
+      <div>
+
+        <h1 class="font-display font-bold text-lg tracking-tight text-[var(--text)]">
+          د افغانستان اطلس
+        </h1>
+
+        <p class="font-mono text-[11px] uppercase tracking-wider text-[var(--text-faint)]">
+          متعامل ولایتي نقشه
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="flex gap-2">
+
+      <button
+        id="themeBtn"
+        class="rounded-xl border border-[var(--border)] px-3 py-2 text-[var(--text-dim)] hover:border-[var(--blue-500)] hover:text-[var(--blue-600)] transition-colors"
+      >
+        🌙
+      </button>
+
+    </div>
+
+  </div>
+
+</header>
+
+
+
+<!-- =========================================================
+     MAIN
+========================================================= -->
+
+<main class="mx-auto max-w-7xl px-5 py-10">
+
+
+  <!-- INTRO -->
+
+  <section class="topo-bg mb-8 rounded-3xl border border-[var(--border)] bg-white/60 p-8 md:p-10">
+
+    <span
+      class="font-mono inline-block rounded-full border border-[var(--blue-500)]/40 bg-[var(--blue-500)]/10 px-3 py-1 text-xs font-semibold tracking-wide text-[var(--blue-600)]"
+    >
+      د GIS اطلس · ۳۴ ولایتونه
+    </span>
+
+    <h2 class="font-display mt-4 text-4xl font-bold leading-[1.15] tracking-tight md:text-6xl">
+
+      <span class="text-[var(--blue-600)]">
+        افغانستان
+      </span>
+
+      وپلټئ
+
+    </h2>
+
+    <p class="mt-3 max-w-2xl text-[var(--text-dim)]">
+
+      د افغانستان یوه ریښتینې جغرافیايي نقشه، د هر ولایت په بېلا‌بېلوالي سره.
+      هره سیمه ونیسئ یا یې وټاکئ چې د هغې موقعیت، پلازمینه او نفوس ولولئ.
+
+    </p>
+
+  </section>
+
+
+
+  <!-- =======================================================
+       MAP + SIDEBAR
+  ======================================================== -->
+
+  <section
+    class="grid gap-6 lg:grid-cols-[1fr_360px]"
+  >
+
+
+    <!-- =====================================================
+         MAP
+    ===================================================== -->
+
+    <div
+      class="corner-ticks overflow-hidden rounded-3xl border border-[var(--border)] bg-white shadow-2xl"
+    >
+
+      <div
+        class="flex items-center justify-between border-b border-[var(--border)] px-5 py-4"
+      >
+
+        <div>
+
+          <p
+            class="font-mono text-[11px] uppercase tracking-wider text-[var(--text-faint)]"
+          >
+            جغرافیايي نقشه
+          </p>
+
+          <h3 class="font-display font-semibold text-[var(--text)]">
+            د افغانستان ولایتونه
+          </h3>
+
+        </div>
+
+
+        <span
+          id="mapStatus"
+          class="font-mono rounded-lg border border-[var(--border)] bg-[var(--bg-inset)] px-3 py-2 text-xs text-[var(--text-dim)]"
+        >
+          نقشه پورته کیږي…
+        </span>
+
+      </div>
+
+
+      <div id="map"></div>
+
+      <!-- CITY DETAIL SECTION -->
+      <div id="cityDetail" class="city-detail-section">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h4 id="cityDetailTitle" class="city-title">هرات</h4>
+            <p id="cityDetailSubtitle" class="city-subtitle">د هرات ولایت پلازمینه</p>
+          </div>
+          <button id="closeCityDetail" class="text-[var(--text-faint)] hover:text-[var(--text)] transition-colors text-xl">&times;</button>
+        </div>
+        
+        <div class="city-info-grid">
+          <div class="city-info-item">
+            <p class="city-info-label">ولایت</p>
+            <p id="cityProvinceName" class="city-info-value">هرات</p>
+          </div>
+          <div class="city-info-item">
+            <p class="city-info-label">پلازمینه</p>
+            <p id="cityCapital" class="city-info-value">هرات</p>
+          </div>
+          <div class="city-info-item">
+            <p class="city-info-label">نفوس</p>
+            <p id="cityPopulation" class="city-info-value">0</p>
+          </div>
+          <div class="city-info-item">
+            <p class="city-info-label">ولایت شمېره</p>
+            <p id="cityProvinceNumber" class="city-info-value">12</p>
+          </div>
+        </div>
+        
+        <div id="cityMap" class="city-map"></div>
+      </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         SIDEBAR
+    ===================================================== -->
+
+    <aside class="space-y-5">
+
+
+      <!-- SEARCH -->
+
+      <div
+        class="rounded-3xl border border-[var(--border)] bg-white p-5"
+      >
+
+        <label
+          class="mb-2 block text-sm font-semibold text-[var(--text)]"
+        >
+          ولایت ولټوئ
+        </label>
+
+        <input
+          id="search"
+          type="search"
+          placeholder="د ولایت نوم ولیکئ..."
+          class="w-full rounded-2xl border border-[var(--border)] bg-[var(--bg-inset)] px-4 py-3 text-sm outline-none placeholder:text-[var(--text-faint)] focus:border-[var(--blue-500)] text-right text-[var(--text)]"
+        >
+
+
+        <div
+          id="provinceList"
+          class="scrollbar mt-4 max-h-[330px] space-y-1 overflow-y-auto pr-1"
+        ></div>
+
+      </div>
+
+
+
+      <!-- SELECTED PROVINCE -->
+
+      <div
+        class="corner-ticks rounded-3xl border border-[var(--blue-500)]/30 bg-gradient-to-b from-[var(--blue-500)]/10 to-transparent p-6"
+      >
+
+        <p class="font-mono text-xs uppercase tracking-wider text-[var(--blue-600)]">
+          ټاکل شوی ولایت
+        </p>
+
+        <h3
+          id="selectedEn"
+          class="hidden"
+        >
+          Hirat
+        </h3>
+
+        <p
+          id="selectedLocal"
+          class="pashto mt-1 text-3xl font-bold tracking-tight text-[var(--text)]"
+        >
+          هرات
+        </p>
+
+
+        <div
+          class="mt-5 grid grid-cols-2 gap-3"
+        >
+
+          <div
+            class="rounded-2xl border border-[var(--border)] bg-[var(--bg-inset)] p-4"
+          >
+
+            <p class="font-mono text-[11px] uppercase tracking-wider text-[var(--text-faint)]">
+              پلازمینه
+            </p>
+
+            <p
+              id="capital"
+              class="mt-1 font-semibold text-[var(--text)]"
+            >
+              Hirat
+            </p>
+
+          </div>
+
+
+          <div
+            class="rounded-2xl border border-[var(--border)] bg-[var(--bg-inset)] p-4"
+          >
+
+            <p class="font-mono text-[11px] uppercase tracking-wider text-[var(--text-faint)]">
+              د ولایت شمېره
+            </p>
+
+            <p
+              id="number"
+              class="font-mono mt-1 font-semibold text-[var(--text)]"
+            >
+              12
+            </p>
+
+          </div>
+
+        </div>
+
+        <!-- Population Display -->
+        <div
+          class="mt-5 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--bg-inset)] p-4"
+        >
+
+          <p class="font-mono text-[11px] uppercase tracking-wider text-[var(--text-faint)]">
+            نفوس
+          </p>
+
+          <p
+            id="population"
+            class="population-display mt-1"
+          >
+            0
+          </p>
+
+        </div>
+
+      </div>
+
+    </aside>
+
+  </section>
+
+
+
+  <!-- =====================================================
+       STATISTICS
+  ====================================================== -->
+
+  <section
+    class="mt-7 grid gap-4 sm:grid-cols-3"
+  >
+
+    <div
+      class="corner-ticks rounded-3xl border border-[var(--border)] bg-white p-6"
+    >
+
+      <p class="font-mono text-xs uppercase tracking-wider text-[var(--text-faint)]">
+        ولایتونه
+      </p>
+
+      <p
+        class="font-display mt-2 text-4xl font-bold text-[var(--blue-600)]"
+      >
+        ۳۴
+      </p>
+
+    </div>
+
+
+    <div
+      class="corner-ticks rounded-3xl border border-[var(--border)] bg-white p-6"
+    >
+
+      <p class="font-mono text-xs uppercase tracking-wider text-[var(--text-faint)]">
+        پلازمینه
+      </p>
+
+      <p class="font-display pashto mt-2 text-4xl font-bold text-[var(--text)]">
+        کابل
+      </p>
+
+    </div>
+
+
+    <div
+      class="corner-ticks rounded-3xl border border-[var(--border)] bg-white p-6"
+    >
+
+      <p class="font-mono text-xs uppercase tracking-wider text-[var(--text-faint)]">
+        د نقشې ډول
+      </p>
+
+      <p class="font-display mt-2 text-4xl font-bold text-[var(--text)]">
+        GIS
+      </p>
+
+    </div>
+
+  </section>
+
+</main>
+
+
+
+<!-- =========================================================
+     FOOTER
+========================================================= -->
+
+<footer
+  class="border-t border-[var(--border)] py-8 text-center font-mono text-xs uppercase tracking-wider text-[var(--text-faint)]"
+>
+
+  د افغانستان متعامل نقشه · ریښتیني جغرافیايي پولې
+
+</footer>
+
+
+
+<script>
+
+
+/*
+===========================================================
+  PROVINCES (with population data - using Pashto names)
+===========================================================
+*/
+
+const provinces = [
+  ["Badakhshan", "بدخشان", "Fayzabad", 1054000],
+  ["Badghis", "بادغیس", "Qala-e-Naw", 495100],
+  ["Baghlan", "بغلان", "Puli Khumri", 910800],
+  ["Balkh", "بلخ", "Mazar-i-Sharif", 1325000],
+  ["Bamyan", "بامیان", "Bamyan", 447200],
+  ["Daykundi", "دایکندی", "Nili", 447200],
+  ["Farah", "فراه", "Farah", 507400],
+  ["Faryab", "فاریاب", "Maymana", 998100],
+  ["Ghazni", "غزني", "Ghazni", 1223000],
+  ["Ghor", "غور", "Chaghcharan", 686800],
+  ["Helmand", "هلمند", "Lashkar Gah", 1145000],
+  ["Hirat", "هرات", "Hirat", 0],
+  ["Jowzjan", "جوزجان", "Sheberghan", 553200],
+  ["Kabul", "کابل", "Kabul", 4272000],
+  ["Kandahar", "کندهار", "Kandahar", 1228000],
+  ["Kapisa", "کاپیسا", "Mahmud-i-Raqi", 447400],
+  ["Khost", "خوست", "Khost", 574300],
+  ["Kunar", "کونړ", "Asadabad", 487200],
+  ["Kunduz", "کندز", "Kunduz", 1017000],
+  ["Laghman", "لغمان", "Mehtarlam", 453700],
+  ["Logar", "لوګر", "Pul-e-Alam", 417600],
+  ["Nangarhar", "ننګرهار", "Jalalabad", 1636000],
+  ["Nimroz", "نیمروز", "Zaranj", 165800],
+  ["Nuristan", "نورستان", "Parun", 151700],
+  ["Paktia", "پکتیا", "Gardez", 552000],
+  ["Paktika", "پکتیکا", "Sharana", 437900],
+  ["Panjsher", "پنجشیر", "Bazarak", 169300],
+  ["Parwan", "پروان", "Charikar", 664500],
+  ["Samangan", "سمنگان", "Aybak", 387900],
+  ["Sar-e-Pul", "سرپل", "Sar-e-Pul", 559600],
+  ["Takhar", "تخار", "Taloqan", 1009000],
+  ["Uruzgan", "اروزګان", "Tarinkot", 386800],
+  ["Wardak", "میدان وردک", "Maidan Shar", 583000],
+  ["Zabul", "زابل", "Qalat", 307600]
+];
+
+
+
+/*
+===========================================================
+  MAP (with zoom control disabled)
+===========================================================
+*/
+
+const map = L
+  .map("map", {
+    zoomControl: false,
+    attributionControl: true,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    dragging: false,
+    touchZoom: false,
+    keyboard: false
+  })
+  .setView(
+    [33.9, 67.7],
+    6
+  );
+
+
+
+/*
+===========================================================
+  VARIABLES
+===========================================================
+*/
+
+const status =
+  document.getElementById(
+    "mapStatus"
+  );
+
+let geojson = null;
+
+let selected = null;
+
+const layers = {};
+
+let provinceDots =
+  L.layerGroup();
+
+let autoRotateInterval = null;
+let currentProvinceIndex = 0;
+let infoPopup = null;
+let cityMap = null;
+
+
+
+/*
+===========================================================
+  FIND PROVINCE DATA
+===========================================================
+*/
+
+function localFor(name) {
+
+  const p =
+    provinces.find(
+      x =>
+        x[0].toLowerCase() ===
+        name.toLowerCase()
+    );
+
+  return p ||
+    [
+      name,
+      name,
+      name,
+      0
+    ];
+
+}
+
+
+
+/*
+===========================================================
+  FORMAT POPULATION
+===========================================================
+*/
+
+function formatPopulation(pop) {
+  return pop.toString();
+}
+
+
+
+/*
+===========================================================
+  PROVINCE STYLE (LIGHT COLORS)
+===========================================================
+*/
+
+function style(feature) {
+
+  return {
+
+    color: "transparent",
+
+    weight: 0,
+
+    opacity: 0,
+
+    fillColor: "#e2e8f0",
+
+    fillOpacity: .75
+
+  };
+
+}
+
+
+
+/*
+===========================================================
+  SELECTED PROVINCE (BLUE COLOR)
+===========================================================
+*/
+
+function selectedStyle(layer) {
+
+  layer.setStyle({
+
+    color: "transparent",
+
+    weight: 0,
+
+    opacity: 0,
+
+    fillColor: "#60a5fa",
+
+    fillOpacity: .85
+
+  });
+
+}
+
+
+
+/*
+===========================================================
+  RESET PROVINCE
+===========================================================
+*/
+
+function resetStyle(layer) {
+
+  if (geojson) {
+
+    geojson.resetStyle(
+      layer
+    );
+
+  }
+
+}
+
+
+
+/*
+===========================================================
+  DOT PATTERN (BLUE DOTS)
+===========================================================
+*/
+
+function createProvinceDots(layer) {
+
+  const bounds =
+    layer.getBounds();
+
+
+  const minLat =
+    bounds.getSouth();
+
+  const maxLat =
+    bounds.getNorth();
+
+  const minLng =
+    bounds.getWest();
+
+  const maxLng =
+    bounds.getEast();
+
+
+  const latStep =
+    Math.max(
+      (maxLat - minLat) / 14,
+      .045
+    );
+
+
+  const lngStep =
+    Math.max(
+      (maxLng - minLng) / 14,
+      .055
+    );
+
+
+  const pts = [];
+
+
+  for (
+    let lat =
+      minLat +
+      latStep * .5;
+
+    lat < maxLat;
+
+    lat += latStep
+  ) {
+
+    const row =
+      Math.round(
+        (lat - minLat) /
+        latStep
+      );
+
+
+    for (
+      let lng =
+        minLng +
+        lngStep * .5;
+
+      lng < maxLng;
+
+      lng += lngStep
+    ) {
+
+      const lng2 =
+        lng +
+        (
+          row % 2
+            ? lngStep * .45
+            : 0
+        );
+
+
+      if (
+        isPointInLayer(
+          [lat, lng2],
+          layer
+        )
+      ) {
+
+        pts.push([
+          lat,
+          lng2
+        ]);
+
+      }
+
+    }
+
+  }
+
+
+  pts.forEach(
+    ([lat, lng]) => {
+
+      L.circleMarker(
+
+        [lat, lng],
+
+        {
+
+          radius: 2.1,
+
+          stroke: false,
+
+          fillColor:
+            "#3b82f6",
+
+          fillOpacity:
+            .4,
+
+          interactive:
+            false
+
+        }
+
+      ).addTo(
+        provinceDots
+      );
+
+    }
+  );
+
+}
+
+
+
+/*
+===========================================================
+  POINT INSIDE PROVINCE
+===========================================================
+*/
+
+function isPointInLayer(
+  latlng,
+  layer
+) {
+
+  const point =
+    map.latLngToLayerPoint(
+      latlng
+    );
+
+
+  function polygonContains(
+    poly
+  ) {
+
+    const rings =
+      poly.getLatLngs();
+
+
+    const ringList =
+      Array.isArray(
+        rings[0]
+      )
+        ? rings
+        : [rings];
+
+
+    for (
+      const ring of
+      ringList
+    ) {
+
+      let hit =
+        false;
+
+
+      for (
+        let i = 0,
+        j = ring.length - 1;
+
+        i < ring.length;
+
+        j = i++
+      ) {
+
+        const p1 =
+          map.latLngToLayerPoint(
+            ring[i]
+          );
+
+        const p2 =
+          map.latLngToLayerPoint(
+            ring[j]
+          );
+
+
+        const intersect =
+
+          (
+            (p1.y > point.y) !==
+            (p2.y > point.y)
+          )
+
+          &&
+
+          (
+            point.x <
+            (p2.x - p1.x) *
+            (point.y - p1.y) /
+            (p2.y - p1.y) +
+            p1.x
+          );
+
+
+        if (intersect) {
+
+          hit = !hit;
+
+        }
+
+      }
+
+
+      if (hit) {
+
+        return true;
+
+      }
+
+    }
+
+
+    return false;
+
+  }
+
+
+  if (
+    layer instanceof
+    L.Polygon
+  ) {
+
+    return polygonContains(
+      layer
+    );
+
+  }
+
+
+  if (
+    layer instanceof
+    L.MultiPolygon
+  ) {
+
+    return layer
+      .getLatLngs()
+      .some(poly => {
+
+        const fake =
+          L.polygon(poly);
+
+        return polygonContains(
+          fake
+        );
+
+      });
+
+  }
+
+
+  return false;
+
+}
+
+
+
+/*
+===========================================================
+  SHOW MAP POPUP WITH PROVINCE INFO (SMALLER, PASHTO ONLY)
+===========================================================
+*/
+
+function showMapPopup(layer, provinceData) {
+  
+  // Close previous popup if exists
+  if (infoPopup) {
+    map.closePopup(infoPopup);
+  }
+  
+  // Get center of province
+  const center = layer.getBounds().getCenter();
+  
+  // Create popup content - PASHTO ONLY, smaller
+  const popupContent = `
+    <div class="province-info-popup">
+      <div class="popup-title">${provinceData[1]}</div>
+      <div class="popup-capital">پلازمینه: <span>${provinceData[2]}</span></div>
+      <div class="popup-population">👥 نفوس: ${formatPopulation(provinceData[3])}</div>
+    </div>
+  `;
+  
+  // Show popup at province center
+  infoPopup = L.popup({
+    className: 'custom-popup',
+    closeButton: false,
+    autoClose: false,
+    closeOnClick: false,
+    offset: [0, -10]
+  })
+  .setLatLng(center)
+  .setContent(popupContent)
+  .openOn(map);
+}
+
+
+
+/*
+===========================================================
+  CITY DETAIL SECTION
+===========================================================
+*/
+
+function showCityDetail(provinceData) {
+  
+  const cityDetail = document.getElementById("cityDetail");
+  
+  // Update city details
+  document.getElementById("cityDetailTitle").textContent = provinceData[1];
+  document.getElementById("cityDetailSubtitle").textContent = `د ${provinceData[1]} ولایت پلازمینه`;
+  document.getElementById("cityProvinceName").textContent = provinceData[1];
+  document.getElementById("cityCapital").textContent = provinceData[2];
+  document.getElementById("cityPopulation").textContent = formatPopulation(provinceData[3]);
+  
+  const provinceIndex = provinces.findIndex(x => x[0] === provinceData[0]);
+  document.getElementById("cityProvinceNumber").textContent = String(provinceIndex + 1).padStart(2, "0");
+  
+  // Show the section
+  cityDetail.classList.add("visible");
+  
+  // Initialize city map with the province center
+  const layer = layers[provinceData[0].toLowerCase()];
+  if (layer) {
+    const bounds = layer.getBounds();
+    const center = bounds.getCenter();
+    
+    // Destroy previous city map if exists
+    if (cityMap) {
+      cityMap.remove();
+    }
+    
+    // Create new city map
+    cityMap = L.map("cityMap", {
+      zoomControl: false,
+      attributionControl: false,
+      scrollWheelZoom: false,
+      dragging: false,
+      doubleClickZoom: false,
+      touchZoom: false
+    }).setView(center, 8);
+    
+    // Add province layer to city map
+    L.geoJSON(layer.toGeoJSON(), {
+      style: {
+        color: "#3b82f6",
+        weight: 2,
+        fillColor: "#3b82f6",
+        fillOpacity: 0.3
+      }
+    }).addTo(cityMap);
+    
+    // Add a marker at the province center
+    L.marker(center).addTo(cityMap);
+    
+    // Fit bounds to province
+    cityMap.fitBounds(bounds, { padding: [20, 20] });
+  }
+}
+
+
+
+/*
+===========================================================
+  SELECT PROVINCE
+===========================================================
+*/
+
+function selectProvince(
+  name,
+  layer
+) {
+
+  const p =
+    localFor(name);
+
+
+  document.getElementById(
+    "selectedEn"
+  ).textContent =
+    p[0];
+
+
+  document.getElementById(
+    "selectedLocal"
+  ).textContent =
+    p[1];
+
+
+  document.getElementById(
+    "capital"
+  ).textContent =
+    p[2];
+
+
+  document.getElementById(
+    "population"
+  ).textContent =
+    formatPopulation(p[3]);
+
+
+  const i =
+    provinces.findIndex(
+      x =>
+        x[0].toLowerCase() ===
+        p[0].toLowerCase()
+    );
+
+
+  document.getElementById(
+    "number"
+  ).textContent =
+    String(i + 1)
+      .padStart(2, "0");
+
+
+  if (
+    selected &&
+    selected !== layer
+  ) {
+
+    resetStyle(
+      selected
+    );
+
+  }
+
+
+  selected =
+    layer;
+
+
+  if (layer) {
+
+    selectedStyle(
+      layer
+    );
+
+    // Show info popup on map
+    showMapPopup(layer, p);
+
+  }
+
+
+  document
+    .querySelectorAll(
+      ".province-btn"
+    )
+    .forEach(
+      b => {
+
+        b.classList.toggle(
+
+          "active",
+
+          b.dataset.name
+            .toLowerCase() ===
+          p[0].toLowerCase()
+
+        );
+
+      }
+    );
+
+  // Show city detail section
+  showCityDetail(p);
+
+}
+
+
+
+/*
+===========================================================
+  AUTO ROTATE FUNCTION
+===========================================================
+*/
+
+function autoRotate() {
+  
+  // Get the current province name
+  const provinceName = provinces[currentProvinceIndex][0];
+  
+  // Get the layer for this province
+  const layer = layers[provinceName.toLowerCase()];
+  
+  // Select the province
+  if (layer) {
+    selectProvince(provinceName, layer);
+  }
+  
+  // Move to next province
+  currentProvinceIndex = (currentProvinceIndex + 1) % provinces.length;
+}
+
+
+
+/*
+===========================================================
+  PROVINCE LIST
+===========================================================
+*/
+
+function renderList(
+  filter = ""
+) {
+
+  const box =
+    document.getElementById(
+      "provinceList"
+    );
+
+
+  box.innerHTML = "";
+
+
+  provinces.forEach(
+    (p, i) => {
+
+      if (
+
+        !p[0]
+          .toLowerCase()
+          .includes(
+            filter.toLowerCase()
+          )
+
+        &&
+
+        !p[1].includes(
+          filter
+        )
+
+      ) {
+
+        return;
+
+      }
+
+
+      const b =
+        document.createElement(
+          "button"
+        );
+
+
+      b.className =
+        "province-btn pashto flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-right text-sm text-[var(--text-dim)] hover:bg-[var(--bg-panel-2)] transition-colors";
+
+
+      b.dataset.name =
+        p[0];
+
+
+      b.innerHTML = `
+
+        <span>
+          ${p[1]}
+        </span>
+
+        <span
+          class="font-mono text-[11px] text-[var(--text-faint)]"
+        >
+          ${String(i + 1).padStart(2, "0")}
+        </span>
+
+      `;
+
+
+      b.onclick = () => {
+
+        const layer =
+          layers[
+            p[0].toLowerCase()
+          ];
+
+
+        // Stop auto rotation when user clicks
+        if (autoRotateInterval) {
+          clearInterval(autoRotateInterval);
+          autoRotateInterval = null;
+        }
+
+
+        selectProvince(
+          p[0],
+          layer
+        );
+
+
+        if (layer) {
+
+          map.fitBounds(
+
+            layer.getBounds(),
+
+            {
+              padding:
+                [25, 25],
+
+              maxZoom:
+                8
+            }
+
+          );
+
+        }
+
+      };
+
+
+      box.appendChild(b);
+
+    }
+  );
+
+}
+
+
+renderList();
+
+
+
+/*
+===========================================================
+  SEARCH
+===========================================================
+*/
+
+document
+  .getElementById("search")
+  .addEventListener(
+    "input",
+    e => {
+
+      renderList(
+        e.target.value
+      );
+
+    }
+  );
+
+
+
+/*
+===========================================================
+  GEOJSON
+===========================================================
+*/
+
+const geoUrl =
+  "https://gist.githubusercontent.com/notacouch/246dcbb684571b8dff41fc3ed325972f/raw/afghanistan_provinces_geometry--cities-demo.json";
+
+
+
+/*
+===========================================================
+  LOAD MAP
+===========================================================
+*/
+
+fetch(geoUrl)
+
+  .then(
+    response => {
+
+      if (!response.ok) {
+
+        throw new Error(
+          "GeoJSON could not be loaded"
+        );
+
+      }
+
+      return response.json();
+
+    }
+  )
+
+
+  .then(
+    data => {
+
+
+      geojson =
+        L.geoJSON(
+
+          data,
+
+          {
+
+            style: style,
+
+
+            onEachFeature:
+              (
+                feature,
+                layer
+              ) => {
+
+
+                const name =
+
+                  feature
+                    .properties
+                    ?.name
+
+                  ||
+
+                  feature
+                    .properties
+                    ?.NAME_1
+
+                  ||
+
+                  feature
+                    .properties
+                    ?.PROV_NAME;
+
+
+                if (!name) {
+
+                  return;
+
+                }
+
+
+                layers[
+                  name.toLowerCase()
+                ] =
+                  layer;
+
+
+                createProvinceDots(
+                  layer
+                );
+
+
+                const p =
+                  localFor(name);
+
+
+                layer.bindTooltip(
+
+                  p[1],
+
+                  {
+
+                    sticky: true,
+
+                    className:
+                      "province-label",
+
+                    direction:
+                      "top"
+
+                  }
+
+                );
+
+
+                layer.on(
+
+                  "mouseover",
+
+                  e => {
+
+                    if (
+                      selected !==
+                      e.target
+                    ) {
+
+                      e.target.setStyle({
+
+                        color:
+                          "transparent",
+
+                        weight:
+                          0,
+
+                        opacity:
+                          0,
+
+                        fillColor:
+                          "#3b82f6",
+
+                        fillOpacity:
+                          .6
+
+                      });
+
+                    }
+
+                  }
+
+                );
+
+
+                layer.on(
+
+                  "mouseout",
+
+                  e => {
+
+                    if (
+                      selected !==
+                      e.target
+                    ) {
+
+                      geojson
+                        .resetStyle(
+                          e.target
+                        );
+
+                    }
+
+                  }
+
+                );
+
+
+                layer.on(
+
+                  "click",
+
+                  e => {
+
+                    // Stop auto rotation when user clicks
+                    if (autoRotateInterval) {
+                      clearInterval(autoRotateInterval);
+                      autoRotateInterval = null;
+                    }
+
+                    selectProvince(
+                      name,
+                      e.target
+                    );
+
+                  }
+
+                );
+
+              }
+
+          }
+
+        ).addTo(map);
+
+
+
+      provinceDots.addTo(
+        map
+      );
+
+
+
+      map.fitBounds(
+
+        geojson.getBounds(),
+
+        {
+          padding:
+            [15, 15]
+        }
+
+      );
+
+
+
+      status.textContent =
+        "۳۴ ولایتونه • خپلکاره ګرځي";
+
+
+      status.className =
+        "font-mono rounded-lg border border-[var(--blue-500)]/30 bg-[var(--blue-500)]/10 px-3 py-2 text-xs text-[var(--blue-600)]";
+
+
+
+      // Start auto rotation after map loads (2 seconds interval)
+      autoRotateInterval = setInterval(autoRotate, 2000);
+
+    }
+  )
+
+
+  .catch(
+    err => {
+
+      status.textContent =
+        "د نقشې معلومات شتون نلري";
+
+
+      status.className =
+        "font-mono rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600";
+
+
+      console.error(err);
+
+    }
+  );
+
+
+
+/*
+===========================================================
+  CLOSE CITY DETAIL
+===========================================================
+*/
+
+document.getElementById("closeCityDetail").addEventListener("click", () => {
+  document.getElementById("cityDetail").classList.remove("visible");
+  if (cityMap) {
+    cityMap.remove();
+    cityMap = null;
+  }
+});
+
+
+
+/*
+===========================================================
+  THEME BUTTON
+===========================================================
+*/
+
+document
+  .getElementById(
+    "themeBtn"
+  )
+  .onclick = () => {
+
+    document.body.classList.toggle(
+      "bg-slate-950"
+    );
+
+    document.body.classList.toggle(
+      "text-slate-100"
+    );
+
+    document.body.classList.toggle(
+      "bg-[var(--bg)]"
+    );
+
+    document.body.classList.toggle(
+      "text-[var(--text)]"
+    );
+
+  };
+
+
+
+</script>
+
+</body>
+</html>
